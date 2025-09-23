@@ -1,3 +1,4 @@
+use rand::Rng;
 use rusqlite::{Connection, Result, params}; // For database operations and result handling
 
 #[derive(Debug)]
@@ -39,8 +40,8 @@ fn main() {
         Err(error) => panic!("Failed to connect to DB, error: {:}", error),
     };
 
-    create_new_game(&conn2);
-
+    //    create_new_game(&conn2);
+    create_new_game_id();
     match get_games(conn2) {
         Ok(game) => println!("Got games"),
         Err(error) => println!("Failed to get games: {:}", error),
@@ -55,6 +56,25 @@ fn create_new_game(conn: &Connection) -> Result<()> {
 
     println!("User inserted successfully.");
     Ok(())
+}
+
+fn create_new_game_id() -> String {
+    let mut new_game_id: String = generate_random_string(6);
+    println!("new id is: {:}", new_game_id);
+    new_game_id
+}
+
+//Taken from external site
+fn generate_random_string(length: usize) -> String {
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let mut rng = rand::thread_rng();
+
+    (0..length)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect()
 }
 
 fn connect_to_database(db_file_path: &str) -> Result<Connection> {
