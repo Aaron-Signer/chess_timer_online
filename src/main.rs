@@ -1,20 +1,28 @@
 use rand::Rng;
-use rusqlite::{Connection, Result, params}; // For database operations and result handling
+use rusqlite::{Connection, OpenFlags, Result, params}; // For database operations and result handling
 
 #[derive(Debug)]
 struct Game {
-    game_id: String,
-    player_1: Option<String>,
-    player_2: Option<String>,
+    id: String,
+    player_1_id: Option<i32>,
+    player_2_id: Option<i32>,
+    status: Option<String>,
 }
 
-fn get_games(conn: Connection) -> Result<Vec<Game>> {
-    let mut stmt = conn.prepare("SELECT game_id, player_1, player_2 FROM games")?;
+#[derive(Debug)]
+struct Player {
+    id: Option<i32>,
+    name: Option<String>,
+}
+
+fn get_games(conn: &Connection) -> Result<Vec<Game>> {
+    let mut stmt = conn.prepare("SELECT id, player_1_id, player_2_id, status FROM Game")?;
     let rows = stmt.query_map([], |row| {
         Ok(Game {
-            game_id: row.get(0)?,
-            player_1: row.get(1)?,
-            player_2: row.get(2)?,
+            id: row.get(0)?,
+            player_1_id: row.get(1)?,
+            player_2_id: row.get(2)?,
+            status: row.get(3)?,
         })
     })?;
 
@@ -26,15 +34,38 @@ fn get_games(conn: Connection) -> Result<Vec<Game>> {
     for game in &games {
         println!(
             "{:?}, {:?}, {:?}",
-            game.game_id, game.player_1, game.player_2
+            game.id, game.player_1_id, game.player_2_id
         )
     }
 
     Ok(games)
 }
 
+fn get_players(conn: &Connection) -> Result<Vec<Player>> {
+    let mut stmt = conn.prepare("SELECT id, name FROM Player")?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok(Player {
+            id: row.get(0)?,
+            name: row.get(1)?,
+        })
+    })?;
+
+    let mut players = Vec::new();
+    for player in rows {
+        players.push(player?);
+    }
+
+    for player in &players {
+        println!("{:?}, {:?}", player.id, player.name)
+    }
+
+    Ok(players)
+}
+
 fn main() {
-    let conn = connect_to_database("./../sqlite/chess_timers.db");
+    let conn = connect_to_database("./sqlite/chess_timers.db");
+
     let conn2 = match conn {
         Ok(connection) => connection,
         Err(error) => panic!("Failed to connect to DB, error: {:}", error),
@@ -42,9 +73,14 @@ fn main() {
 
     //    create_new_game(&conn2);
     create_new_game_id();
-    match get_games(conn2) {
+    match get_games(&conn2) {
         Ok(game) => println!("Got games"),
         Err(error) => println!("Failed to get games: {:}", error),
+    }
+
+    match get_players(&conn2) {
+        Ok(player) => println!("Got players"),
+        Err(error) => println!("Failed to get players: {:}", error),
     }
 }
 
@@ -78,6 +114,12 @@ fn generate_random_string(length: usize) -> String {
 }
 
 fn connect_to_database(db_file_path: &str) -> Result<Connection> {
-    let conn = Connection::open(db_file_path);
+    let conn = Connection::open_with_flags(
+        db_file_path,
+        OpenFlags::SQLITE_OPEN_READ_WRITE
+            | OpenFlags::SQLITE_OPEN_URI
+            | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    );
+
     conn
 }
