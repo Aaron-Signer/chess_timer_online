@@ -72,16 +72,31 @@ fn main() {
     };
 
     //    create_new_game(&conn2);
-    create_new_game_id();
+    //create_new_game_id();
     match get_games(&conn2) {
         Ok(game) => println!("Got games"),
         Err(error) => println!("Failed to get games: {:}", error),
     }
-
+    create_new_player("Aaron", &conn2);
     match get_players(&conn2) {
         Ok(player) => println!("Got players"),
         Err(error) => println!("Failed to get players: {:}", error),
     }
+}
+
+fn create_new_player(name: &str, conn: &Connection) -> Result<()> {
+    conn.execute("INSERT INTO Player (name) VALUES (?1)", params![name])?;
+
+    println!("Player inserted good");
+    Ok(())
+}
+
+fn get_new_player_id(conn: &Connection) -> Result<()> {
+    let mut stmt = conn.prepare("SELECT max(id) FROM Player")?;
+    //Should use query_one method here, but not sure how to lol
+    let rows = stmt.query_one([], |row| row)?;
+    println!("{:?}", rows);
+    Ok(())
 }
 
 fn create_new_game(conn: &Connection) -> Result<()> {
