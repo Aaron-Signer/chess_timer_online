@@ -15,6 +15,14 @@ struct Player {
     name: Option<String>,
 }
 
+#[derive(Debug)]
+struct Timer {
+    id: Option<i32>,
+    action: Option<String>,
+    player_id: Option<i32>,
+    created_timestamp: Option<String>,
+}
+
 fn get_games(conn: &Connection) -> Result<Vec<Game>> {
     let mut stmt = conn.prepare("SELECT id, player_1_id, player_2_id, status FROM Game")?;
     let rows = stmt.query_map([], |row| {
@@ -62,6 +70,32 @@ fn get_players(conn: &Connection) -> Result<Vec<Player>> {
     Ok(players)
 }
 
+fn get_timers(conn: &Connection) -> Result<Vec<Timer>> {
+    let mut stmt = conn.prepare("SELECT id, action, player_id, action_timestamp FROM Timer")?;
+    let rows = stmt.query_map([], |row| {
+        Ok(Timer {
+            id: row.get(0)?,
+            action: row.get(1)?,
+            player_id: row.get(2)?,
+            created_timestamp: row.get(3)?,
+        })
+    })?;
+
+    let mut timers = Vec::new();
+    for timer in rows {
+        timers.push(timer?);
+    }
+
+    for timer in &timers {
+        println!(
+            "Timer Info: {:?}, {:?}, {:?}, {:?}",
+            timer.id, timer.action, timer.player_id, timer.created_timestamp
+        )
+    }
+
+    Ok(timers)
+}
+
 fn main() {
     let conn = connect_to_database("./sqlite/chess_timers.db");
 
@@ -85,6 +119,10 @@ fn main() {
         Ok(player) => println!("Got players"),
         Err(error) => println!("Failed to get players: {:}", error),
     }
+    match get_timers(&conn2) {
+        Ok(timer) => println!("Got timers"),
+        Err(error) => println!("Failed to get timers: {:}", error),
+    }
 }
 
 fn create_new_player(player: &Player, conn: &Connection) -> Result<i32> {
@@ -107,12 +145,13 @@ fn get_new_player_id(conn: &Connection) -> Result<i32> {
 
 fn create_new_game(conn: &Connection, player_1: &Player) -> Result<()> {
     let player_1_id = create_new_player(&player_1, &conn)?;
+    let timer_id = create_new_timer(&conn)?;
 
     let new_random_game_id = create_new_game_id();
 
     conn.execute(
-        "INSERT INTO Game (id, player_1_id, status, created_timestamp) VALUES (?1, ?2, ?3, ?4)",
-        params![new_random_game_id, player_1_id, "CREATED", "TODAY"], // Bind parameters
+        "INSERT INTO Game (id, player_1_id, timer_id, status, created_timestamp) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![new_random_game_id, player_1_id, timer_id, "CREATED", "TODAY"], // Bind parameters
     )?;
 
     println!("Game inserted successfully.");
@@ -136,6 +175,31 @@ fn generate_random_string(length: usize) -> String {
             CHARSET[idx] as char
         })
         .collect()
+}
+
+fn create_new_timer(conn: &Connection) -> Result<i32> {
+    let mut highest_timer_id = get_highest_timer_id(&conn);
+
+    let new_timer_id = match highest_timer_id {
+        Ok(res) => res + 1,
+        Err(error) => {
+            println!("error: {:?}", error);
+            0
+        }
+    };
+
+    conn.execute(
+        "INSERT INTO Timer (id, action, action_timestamp) VALUES (?1, ?2, ?3)",
+        params![new_timer_id, "CREATED", "TODAY"],
+    )?;
+
+    println!("Timer inserted good");
+    Ok(new_timer_id)
+}
+
+fn get_highest_timer_id(conn: &Connection) -> Result<i32> {
+    //Should use query_one method here, but not sure how to lol
+    conn.query_row_and_then("SELECT max(id) FROM Timer", [], |row| row.get(0))
 }
 
 fn connect_to_database(db_file_path: &str) -> Result<Connection> {
