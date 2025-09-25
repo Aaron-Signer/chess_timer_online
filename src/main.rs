@@ -33,8 +33,8 @@ fn get_games(conn: &Connection) -> Result<Vec<Game>> {
 
     for game in &games {
         println!(
-            "{:?}, {:?}, {:?}",
-            game.id, game.player_1_id, game.player_2_id
+            "Game info: {:?}, {:?}, {:?}, {:?}",
+            game.id, game.player_1_id, game.player_2_id, game.status
         )
     }
 
@@ -43,7 +43,6 @@ fn get_games(conn: &Connection) -> Result<Vec<Game>> {
 
 fn get_players(conn: &Connection) -> Result<Vec<Player>> {
     let mut stmt = conn.prepare("SELECT id, name FROM Player")?;
-
     let rows = stmt.query_map([], |row| {
         Ok(Player {
             id: row.get(0)?,
@@ -57,7 +56,7 @@ fn get_players(conn: &Connection) -> Result<Vec<Player>> {
     }
 
     for player in &players {
-        println!("{:?}, {:?}", player.id, player.name)
+        println!("Player Info: {:?}, {:?}", player.id, player.name)
     }
 
     Ok(players)
@@ -71,41 +70,52 @@ fn main() {
         Err(error) => panic!("Failed to connect to DB, error: {:}", error),
     };
 
-    //    create_new_game(&conn2);
-    //create_new_game_id();
+    let player = Player {
+        id: None,
+        name: Some(String::from("Aaron10")),
+    };
+
+    create_new_game(&conn2, &player);
+
     match get_games(&conn2) {
         Ok(game) => println!("Got games"),
         Err(error) => println!("Failed to get games: {:}", error),
     }
-    create_new_player("Aaron", &conn2);
     match get_players(&conn2) {
         Ok(player) => println!("Got players"),
         Err(error) => println!("Failed to get players: {:}", error),
     }
 }
 
-fn create_new_player(name: &str, conn: &Connection) -> Result<()> {
-    conn.execute("INSERT INTO Player (name) VALUES (?1)", params![name])?;
+fn create_new_player(player: &Player, conn: &Connection) -> Result<i32> {
+    let mut highest_player_id = get_new_player_id(&conn)?;
+    highest_player_id += 1;
 
-    println!("Player inserted good");
-    Ok(())
-}
-
-fn get_new_player_id(conn: &Connection) -> Result<()> {
-    let mut stmt = conn.prepare("SELECT max(id) FROM Player")?;
-    //Should use query_one method here, but not sure how to lol
-    let rows = stmt.query_one([], |row| row)?;
-    println!("{:?}", rows);
-    Ok(())
-}
-
-fn create_new_game(conn: &Connection) -> Result<()> {
     conn.execute(
-        "INSERT INTO games (game_id, player_1) VALUES (?1, ?2)",
-        params!["game2", "Aaron"], // Bind parameters
+        "INSERT INTO Player (id, name) VALUES (?1, ?2)",
+        params![highest_player_id, player.name],
     )?;
 
-    println!("User inserted successfully.");
+    println!("Player inserted good");
+    Ok(highest_player_id)
+}
+
+fn get_new_player_id(conn: &Connection) -> Result<i32> {
+    //Should use query_one method here, but not sure how to lol
+    conn.query_row_and_then("SELECT max(id) FROM Player", [], |row| row.get(0))
+}
+
+fn create_new_game(conn: &Connection, player_1: &Player) -> Result<()> {
+    let player_1_id = create_new_player(&player_1, &conn)?;
+
+    let new_random_game_id = create_new_game_id();
+
+    conn.execute(
+        "INSERT INTO Game (id, player_1_id, status, created_timestamp) VALUES (?1, ?2, ?3, ?4)",
+        params![new_random_game_id, player_1_id, "CREATED", "TODAY"], // Bind parameters
+    )?;
+
+    println!("Game inserted successfully.");
     Ok(())
 }
 
